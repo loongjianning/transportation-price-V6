@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>物流决策模型（偏空运版）</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #1f2329;
+    }
+    .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    .title { margin-bottom: 10px; font-size: 24px; font-weight: 700; }
+    .sub { color: #5c6470; margin-bottom: 16px; line-height: 1.7; }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e8edf3;
+      box-shadow: 0 4px 16px rgba(15, 36, 66, 0.06);
+      padding: 18px;
+    }
+    .card h2 { margin: 0 0 14px; font-size: 18px; }
+    .row {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    label { color: #3d4653; font-size: 14px; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #cdd7e3;
+      font-size: 14px;
+      background: #fff;
+    }
+    input:focus {
+      outline: none;
+      border-color: #1677ff;
+      box-shadow: 0 0 0 3px rgba(22,119,255,.14);
+    }
+    .hint {
+      margin: 8px 0 14px;
+      color: #6a7280;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    button {
+      border: none;
+      background: #1677ff;
+      color: #fff;
+      border-radius: 9px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #0f62d6; }
+    .pill {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .pill-air { background: #e8f3ff; color: #1677ff; }
+    .pill-sea { background: #e9f7ef; color: #1f8f4d; }
+    .pill-none { background: #fff1f0; color: #cf1322; }
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 14px;
+    }
+    .muted { color: #697384; }
+    .ok { color: #1f8f4d; }
+    .warn { color: #d46b08; }
+    .bad { color: #cf1322; }
+    .section {
+      border-top: 1px dashed #e6ebf2;
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+    ul, ol {
+      margin: 6px 0 0 18px;
+      padding: 0;
+      line-height: 1.65;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #e6ebf2;
+      padding: 8px;
+      vertical-align: top;
+    }
+    th { background: #f8fafc; text-align: left; }
+    pre {
+      background: #f7f9fc;
+      border: 1px solid #e6edf5;
+      border-radius: 8px;
+      padding: 10px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .full-card { margin-top: 16px; }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">物流决策模型（可调单价 + 偏空运策略）</div>
+    <div class="sub">
+      规则：<strong>12kg以下强制空运</strong>；运费不得超过货值50%；支持 <strong>X% 空运偏好阈值</strong>（建议 15%~25%）。
+    </div>
+
+    <div class="layout">
+      <div class="card">
+        <h2>输入参数</h2>
+
+        <div class="row">
+          <label for="weight">货物重量 (kg)</label>
+          <input id="weight" type="number" min="0.01" step="0.1" value="100" />
+        </div>
+
+        <div class="row">
+          <label for="cargoValue">货值 (RMB)</label>
+          <input id="cargoValue" type="number" min="0.01" step="1" value="50000" />
+        </div>
+
+        <div class="row">
+          <label for="seaRate">海运单价 (元/kg)</label>
+          <input id="seaRate" type="number" min="0" step="0.1" value="20" />
+        </div>
+
+        <div class="row">
+          <label for="airRate">空运单价 (元/kg)</label>
+          <input id="airRate" type="number" min="0" step="0.1" value="60" />
+        </div>
+
+        <div class="row">
+          <label for="seaFixed">海运固定杂费 (元)</label>
+          <input id="seaFixed" type="number" min="0" step="1" value="1800" />
+        </div>
+
+        <div class="row">
+          <label for="airFixed">空运固定杂费 (元)</label>
+          <input id="airFixed" type="number" min="0" step="1" value="800" />
+        </div>
+
+        <div class="row">
+          <label for="xPercent">空运偏好阈值 X (%)</label>
+          <input id="xPercent" type="number" min="1" max="100" step="1" value="15" />
+        </div>
+
+        <div class="hint">
+          团队偏空运建议：X 设为 <strong>15% - 25%</strong>。X 越高，越容易触发空运推荐；但仍需满足“运费 ≤ 货值50%”红线。
+        </div>
+
+        <button id="calcBtn">计算决策</button>
+      </div>
+
+      <div class="card">
+        <h2>输出结果</h2>
+        <div id="result">点击“计算决策”后显示。</div>
+      </div>
+    </div>
+
+    <div class="card full-card">
+      <h2>X=15%~25% 区间的业务解释与取舍建议</h2>
+      <div class="muted">
+        这个建议区间是基于跨境贸易中的利润留存、行业基准率和边际效益平衡形成的经验法则。
+      </div>
+
+      <div class="section">
+        <strong>1) 为什么是 15% - 25%</strong>
+        <ol>
+          <li><strong>打破“海运惯性”的门槛：</strong>常规贸易海运成本通常占货值 5%~10%。若 X 太低（如10%），空运几乎不会被选中；X 达到 15% 以上，海空才会出现有效切换。</li>
+          <li><strong>企业盈利安全线：</strong>跨境电商和一般贸易的平均毛利率常见 30%~50%。若物流成本超过货值 25%，叠加关税、运营费、汇损后，净利空间会显著压缩甚至转负。</li>
+          <li><strong>价值密度反馈：</strong>15%~25% 常见于高价值密度货物（芯片、精密仪器、高端医疗器械）采用空运时的可接受占比区间。</li>
+        </ol>
+      </div>
+
+      <div class="section">
+        <strong>2) 决策对照：何时用 15%，何时用 25%</strong>
+        <table>
+          <thead>
+            <tr>
+              <th>考量维度</th>
+              <th>15%（保守型 / 成本驱动）</th>
+              <th>25%（激进型 / 速度驱动）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>产品利润率</td>
+              <td>中低毛利（3C配件、普通快消），优先控制物流占比</td>
+              <td>高毛利（奢侈品、季节爆款、高精尖材料），可承受速度溢价</td>
+            </tr>
+            <tr>
+              <td>市场竞争</td>
+              <td>存量市场，需求稳定，时效敏感度低</td>
+              <td>增量市场/抢首发（如黑五），速度直接影响份额</td>
+            </tr>
+            <tr>
+              <td>库存周转</td>
+              <td>重资产库存模式，目标是降单件成本</td>
+              <td>轻资产快周转，强调 Cash-to-Cash 周期效率</td>
+            </tr>
+            <tr>
+              <td>机会成本</td>
+              <td>延迟一周影响有限</td>
+              <td>断货可能导致排名下滑或违约损失</td>
+            </tr>
+            <tr>
+              <td>货值密度</td>
+              <td>低货值密度（体积大、价格低）</td>
+              <td>高货值密度（体积小、价值高，如贵金属/生物试剂）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section">
+        <strong>3) 实务建议</strong>
+        <ul>
+          <li>默认 X 可设为 <strong>20%</strong> 作为平衡点，再按产品线调到 15% 或 25%。</li>
+          <li>促销季/新品上市前，可临时上调 X；淡季或利润承压时下调 X。</li>
+          <li>无论 X 如何调整，50% 红线应保持硬约束。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function logisticsDecisionModel(weight, cargoValue, xPercent, seaRate, airRate, seaFixed, airFixed) {
+      if (!(weight > 0) || !(cargoValue > 0)) {
+        return { decision: "异常", reason: "weight 和 cargo_value 必须大于 0" };
+      }
+      if (!(xPercent > 0 && xPercent <= 100)) {
+        return { decision: "异常", reason: "x_percent 必须在 (0, 100] 区间" };
+      }
+      if (seaRate < 0 || airRate < 0 || seaFixed < 0 || airFixed < 0) {
+        return { decision: "异常", reason: "单价和固定杂费不能为负数" };
+      }
+
+      // 成本计算（可调）
+      const costSea = seaRate * weight + seaFixed;
+      const costAir = airRate * weight + airFixed;
+
+      const limit50 = 0.5 * cargoValue;
+      const airPreferenceLimit = (xPercent / 100) * cargoValue;
+
+      const ratioSea = costSea / cargoValue;
+      const ratioAir = costAir / cargoValue;
+
+      // 1) 12kg以下硬规则
+      if (weight < 12) {
+        if (costAir <= limit50) {
+          return pack("空运", `重量 < 12kg，触发硬规则`, costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+        }
+        return pack("异常", "小件空运成本超过货值50%", costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+      }
+
+      // 2) 空运偏好规则
+      if (costAir <= airPreferenceLimit && costAir <= limit50) {
+        return pack("空运", `触发 ${xPercent}% 偏好规则（高效周转优先）`, costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+      }
+
+      // 3) 常规比价
+      if (costSea < costAir) {
+        if (costSea <= limit50) {
+          return pack("海运", "海运更便宜（经济型选择）", costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+        }
+        return pack("异常", "海运成本仍超过货值50%", costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+      } else {
+        if (costAir <= limit50) {
+          return pack("空运", "空运更便宜", costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+        }
+        return pack("异常", "运输成本普遍过高", costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent);
+      }
+    }
+
+    function pack(decision, reason, costSea, costAir, ratioSea, ratioAir, limit50, airPreferenceLimit, xPercent) {
+      return {
+        decision,
+        reason,
+        cost_sea: round2(costSea),
+        cost_air: round2(costAir),
+        ratio_sea: round4(ratioSea),
+        ratio_air: round4(ratioAir),
+        limit_50: round2(limit50),
+        air_preference_limit: round2(airPreferenceLimit),
+        x_percent: xPercent
+      };
+    }
+
+    function round2(n) { return Math.round(n * 100) / 100; }
+    function round4(n) { return Math.round(n * 10000) / 10000; }
+
+    function decisionPill(decision) {
+      if (decision === "空运") return '<span class="pill pill-air">空运</span>';
+      if (decision === "海运") return '<span class="pill pill-sea">海运</span>';
+      return '<span class="pill pill-none">异常</span>';
+    }
+
+    function ratioClass(r) { return r <= 0.5 ? "ok" : "bad"; }
+
+    function renderResult(data, inputs) {
+      const inRange = data.x_percent >= 15 && data.x_percent <= 25;
+      const strategyHint = inRange
+        ? "当前 X 在建议区间（15%~25%），兼顾利润安全与周转效率。"
+        : "当前 X 不在建议区间，可按策略调整到 15%~25%。";
+
+      return `
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px;">
+          推荐结果：${decisionPill(data.decision)}
+        </div>
+        <div class="muted" style="margin-bottom:8px;">${data.reason}</div>
+        <div class="${inRange ? "ok" : "warn"}" style="font-size:13px;margin-bottom:8px;">${strategyHint}</div>
+
+        <div class="section">
+          <div class="kv"><span>海运单价</span><strong>${inputs.seaRate} 元/kg</strong></div>
+          <div class="kv"><span>空运单价</span><strong>${inputs.airRate} 元/kg</strong></div>
+          <div class="kv"><span>海运固定杂费</span><strong>${inputs.seaFixed} 元</strong></div>
+          <div class="kv"><span>空运固定杂费</span><strong>${inputs.airFixed} 元</strong></div>
+        </div>
+
+        <div class="section">
+          <div class="kv"><span>海运成本</span><strong>${data.cost_sea} 元</strong></div>
+          <div class="kv"><span>空运成本</span><strong>${data.cost_air} 元</strong></div>
+          <div class="kv"><span>50%红线（货值*0.5）</span><strong>${data.limit_50} 元</strong></div>
+          <div class="kv"><span>X%偏好线（货值*X%）</span><strong>${data.air_preference_limit} 元</strong></div>
+          <div class="kv">
+            <span>海运占货值比</span>
+            <strong class="${ratioClass(data.ratio_sea)}">${(data.ratio_sea * 100).toFixed(2)}%</strong>
+          </div>
+          <div class="kv">
+            <span>空运占货值比</span>
+            <strong class="${ratioClass(data.ratio_air)}">${(data.ratio_air * 100).toFixed(2)}%</strong>
+          </div>
+        </div>
+
+        <div class="section">
+          <details>
+            <summary>查看JSON结果</summary>
+            <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+          </details>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    }
+
+    document.getElementById("calcBtn").addEventListener("click", function () {
+      const inputs = {
+        weight: Number(document.getElementById("weight").value),
+        cargoValue: Number(document.getElementById("cargoValue").value),
+        xPercent: Number(document.getElementById("xPercent").value),
+        seaRate: Number(document.getElementById("seaRate").value),
+        airRate: Number(document.getElementById("airRate").value),
+        seaFixed: Number(document.getElementById("seaFixed").value),
+        airFixed: Number(document.getElementById("airFixed").value)
+      };
+
+      const result = logisticsDecisionModel(
+        inputs.weight,
+        inputs.cargoValue,
+        inputs.xPercent,
+        inputs.seaRate,
+        inputs.airRate,
+        inputs.seaFixed,
+        inputs.airFixed
+      );
+
+      document.getElementById("result").innerHTML = renderResult(result, inputs);
+    });
+
+    document.getElementById("calcBtn").click();
+  </script>
+</body>
+</html>
